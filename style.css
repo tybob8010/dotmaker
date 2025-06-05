@@ -1,4 +1,9 @@
-body {
+   /* パレット内の色スウォッチの表示 */
+    #paletteColors div {
+      display: inline-block;
+      margin-right: 4px;
+    }
+  body {
     font-family: sans-serif;
     background: #f0f0f0;
     margin: 0;
