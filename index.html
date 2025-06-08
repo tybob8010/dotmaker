@@ -22,11 +22,12 @@
             <li>「リサイズ」ボタンでダウンロード時の1ドットサイズを変更します。</li>
             <li>色はHSBまたはRGBで指定できます。スライダーや数値入力で調整してください。</li>
             <li>「HSB→RGB」「RGB→HSB」ボタンで色指定を相互変換できます。</li>
-            <li>「消しゴム」ボタンを押すと消しゴムモードになり、色を消すことができます。</li>
+            <li>「範囲選択」ボタンで範囲選択・移動、「消しゴム」ボタンで消しゴム、「スポイト」ボタンで色取得、何も選択していないときは着色モードです。</li>
             <li>「保存形式」でPNG/JPEG/ICOを選び、「保存」ボタンで画像としてダウンロードできます。</li>
             <li>「1ドットの大きさ(px)」は保存時の画像の拡大率です（キャンバス表示には影響しません）。</li>
+            <p>2025-06-01:爆誕</p>
+            <p>2025-06-08:画像読み込み、スポイト等機能追加</p>
             <p>2025Ⓒtybob</p>
-            
         </ul>
     </section>
     <!-- 操作パネル -->
@@ -49,8 +50,12 @@
         <button id="hsb2rgb">HSB→RGB</button>
         <button id="rgb2hsb">RGB→HSB</button>
         <span id="colorPreview" style="display:inline-block;width:30px;height:30px;vertical-align:middle;"></span>
+        <button id="selectBtn">範囲選択</button>
+        <span id="selectStatus" style="margin-left:8px;color:#00f;"></span>
         <button id="eraserBtn">消しゴム</button>
         <span id="eraserStatus" style="margin-left:8px;color:#d00;"></span>
+        <button id="eyedropperBtn">スポイト</button>
+        <span id="eyedropperStatus" style="margin-left:8px;color:#00a;"></span>
         <br>
         <label>保存形式:
             <select id="fileType">
@@ -60,6 +65,18 @@
             </select>
         </label>
         <button id="saveBtn">保存</button>
+    </div>
+    <div class="palette controls">
+        <span>パレット:</span>
+        <div id="paletteArea" style="display:inline-block;vertical-align:middle;"></div>
+        <button id="addToPaletteBtn">現在の色を追加</button>
+    </div>
+    <div class="image-upload controls">
+        <label>画像を読み込む:
+            <input type="file" id="imageLoader" accept="image/*">
+        </label>
+        <div id="imageInfo" style="font-size:90%;margin-top:4px;"></div>
+        <div id="imageSizeAttention" class="attention"></div>
     </div>
     <canvas id="dotCanvas"></canvas>
     <script src="main.js"></script>
