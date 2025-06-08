@@ -23,3 +23,21 @@ canvas {
     display: block;
     margin-top: 10px;
 }
+
+/*2025/06/08*/
+.image-upload {
+    margin-bottom: 10px;
+}
+.image-upload input[type="file"] {
+    display: block;
+    margin-top: 5px;
+}
+.palette-color {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #888;
+    margin: 2px;
+    cursor: pointer;
+    vertical-align: middle;
+}
