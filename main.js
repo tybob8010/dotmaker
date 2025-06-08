@@ -4,10 +4,46 @@
 let cols = 16, rows = 16; // ドットの列数・行数
 let pixels = []; // ドット絵データ（2次元配列）
 let currentColor = { h: 0, s: 100, b: 100, r: 255, g: 0, b2: 0 }; // 現在の色
-let eraserMode = false; // 消しゴムモードのフラグ
 
 const canvas = document.getElementById('dotCanvas');
 const ctx = canvas.getContext('2d');
+
+// --- モード管理 ---
+let mode = "draw"; // "draw" | "erase" | "eyedropper" | "select"
+
+// --- パレット機能 ---
+let palette = []; // 最大10色
+
+function updatePaletteView() {
+    const area = document.getElementById('paletteArea');
+    area.innerHTML = '';
+    palette.forEach((color, idx) => {
+        const div = document.createElement('div');
+        div.className = 'palette-color';
+        div.style.background = color;
+        div.title = color;
+        div.onclick = function() {
+            // パレット色を選択
+            const rgb = color.match(/\d+/g).map(Number);
+            document.getElementById('r').value = rgb[0];
+            document.getElementById('g').value = rgb[1];
+            document.getElementById('b').value = rgb[2];
+            setColorFromRGB();
+        };
+        area.appendChild(div);
+    });
+}
+
+document.getElementById('addToPaletteBtn').onclick = function() {
+    const rgb = hsbToRgb(currentColor.h, currentColor.s, currentColor.b);
+    const colorStr = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+    // すでに同じ色があれば追加しない
+    if (!palette.includes(colorStr)) {
+        if (palette.length >= 10) palette.shift(); // 10色を超えたら古い色を削除
+        palette.push(colorStr);
+        updatePaletteView();
+    }
+};
 
 // --- HSB→RGB変換関数 ---
 function hsbToRgb(h, s, v) {
@@ -120,31 +156,181 @@ function drawCanvas() {
             ctx.strokeRect(x * displayPixelSize, y * displayPixelSize, displayPixelSize, displayPixelSize);
         }
     }
+    drawSelectionRect();
 }
 
-// --- マウスクリック時の処理 ---
+// --- 範囲選択・移動用変数 ---
+let selection = null; // {x1, y1, x2, y2}
+let isSelecting = false;
+let isDraggingSelection = false;
+let dragOffset = {x: 0, y: 0};
+let selectedPixels = null;
+
+// --- モード切替ボタン ---
+document.getElementById('selectBtn').onclick = function () {
+    mode = (mode === "select") ? "draw" : "select";
+    updateModeUI();
+};
+document.getElementById('eraserBtn').onclick = function () {
+    mode = (mode === "erase") ? "draw" : "erase";
+    updateModeUI();
+};
+document.getElementById('eyedropperBtn').onclick = function () {
+    mode = (mode === "eyedropper") ? "draw" : "eyedropper";
+    updateModeUI();
+};
+
+// --- モードUI表示 ---
+function updateModeUI() {
+    document.getElementById('selectStatus').textContent = (mode === "select") ? "範囲選択ON" : "";
+    document.getElementById('selectBtn').style.background = (mode === "select") ? "#ccf" : "";
+    document.getElementById('eraserStatus').textContent = (mode === "erase") ? "消しゴムON" : "";
+    document.getElementById('eraserBtn').style.background = (mode === "erase") ? "#ffd" : "";
+    document.getElementById('eyedropperStatus').textContent = (mode === "eyedropper") ? "スポイトON" : "";
+    document.getElementById('eyedropperBtn').style.background = (mode === "eyedropper") ? "#cff" : "";
+}
+
+// --- マウスドラッグで連続塗り対応 ---
+let isDrawing = false;
+
 canvas.addEventListener('mousedown', function (e) {
     const displayPixelSize = 20;
     const rect = canvas.getBoundingClientRect();
     const x = Math.floor((e.clientX - rect.left) / displayPixelSize);
     const y = Math.floor((e.clientY - rect.top) / displayPixelSize);
-    if (x >= 0 && x < cols && y >= 0 && y < rows) {
-        if (eraserMode) {
-            pixels[y][x].color = null;
+
+    if (mode === "select") {
+        if (selection && x >= selection.x1 && x <= selection.x2 && y >= selection.y1 && y <= selection.y2) {
+            isDraggingSelection = true;
+            dragOffset.x = x - selection.x1;
+            dragOffset.y = y - selection.y1;
         } else {
-            const rgb = hsbToRgb(currentColor.h, currentColor.s, currentColor.b);
-            pixels[y][x].color = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+            isSelecting = true;
+            selection = {x1: x, y1: y, x2: x, y2: y};
         }
         drawCanvas();
+        return;
+    }
+
+    if (mode === "eyedropper") {
+        const color = pixels[y][x].color;
+        if (color) {
+            const rgb = color.match(/\d+/g).map(Number);
+            document.getElementById('r').value = rgb[0];
+            document.getElementById('g').value = rgb[1];
+            document.getElementById('b').value = rgb[2];
+            setColorFromRGB();
+        }
+        mode = "draw";
+        updateModeUI();
+        return;
+    }
+
+    if (mode === "erase") {
+        isDrawing = true;
+        pixels[y][x].color = null;
+        drawCanvas();
+        return;
+    }
+
+    // draw(着色)
+    isDrawing = true;
+    const rgb = hsbToRgb(currentColor.h, currentColor.s, currentColor.b);
+    pixels[y][x].color = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+    drawCanvas();
+});
+
+canvas.addEventListener('mousemove', function (e) {
+    const displayPixelSize = 20;
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / displayPixelSize);
+    const y = Math.floor((e.clientY - rect.top) / displayPixelSize);
+
+    if (mode === "select") {
+        if (isSelecting) {
+            selection.x2 = x;
+            selection.y2 = y;
+            drawCanvas();
+        }
+        if (isDraggingSelection && selectedPixels) {
+            let nx1 = x - dragOffset.x;
+            let ny1 = y - dragOffset.y;
+            let w = selectedPixels[0].length;
+            let h = selectedPixels.length;
+            selection.x1 = Math.max(0, Math.min(cols - w, nx1));
+            selection.y1 = Math.max(0, Math.min(rows - h, ny1));
+            selection.x2 = selection.x1 + w - 1;
+            selection.y2 = selection.y1 + h - 1;
+            drawCanvas();
+        }
+        return;
+    }
+
+    if (!isDrawing) return;
+
+    if (mode === "erase") {
+        pixels[y][x].color = null;
+        drawCanvas();
+        return;
+    }
+    if (mode === "draw") {
+        const rgb = hsbToRgb(currentColor.h, currentColor.s, currentColor.b);
+        pixels[y][x].color = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+        drawCanvas();
+        return;
     }
 });
 
-// --- 消しゴムボタンの処理 ---
-document.getElementById('eraserBtn').onclick = function () {
-    eraserMode = !eraserMode;
-    document.getElementById('eraserStatus').textContent = eraserMode ? "消しゴムON" : "";
-    this.style.background = eraserMode ? "#ffd" : "";
-};
+canvas.addEventListener('mouseup', function (e) {
+    isDrawing = false;
+    if (mode === "select") {
+        if (isSelecting) {
+            isSelecting = false;
+            let {x1, y1, x2, y2} = selection;
+            selection.x1 = Math.max(0, Math.min(x1, x2));
+            selection.y1 = Math.max(0, Math.min(y1, y2));
+            selection.x2 = Math.min(cols - 1, Math.max(x1, x2));
+            selection.y2 = Math.min(rows - 1, Math.max(y1, y2));
+            selectedPixels = [];
+            for (let y = selection.y1; y <= selection.y2; y++) {
+                let row = [];
+                for (let x = selection.x1; x <= selection.x2; x++) {
+                    row.push(pixels[y] && pixels[y][x] ? {...pixels[y][x]} : {color: null});
+                }
+                selectedPixels.push(row);
+            }
+            drawCanvas();
+        }
+        if (isDraggingSelection) {
+            isDraggingSelection = false;
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    if (x >= selection.x1 && x <= selection.x2 && y >= selection.y1 && y <= selection.y2) {
+                        pixels[y][x].color = null;
+                    }
+                }
+            }
+            for (let dy = 0; dy < selectedPixels.length; dy++) {
+                for (let dx = 0; dx < selectedPixels[0].length; dx++) {
+                    let px = selection.x1 + dx;
+                    let py = selection.y1 + dy;
+                    if (px >= 0 && px < cols && py >= 0 && py < rows) {
+                        pixels[py][px].color = selectedPixels[dy][dx].color;
+                    }
+                }
+            }
+            // 移動後に範囲選択解除
+            selectedPixels = null;
+            selection = null;
+            drawCanvas();
+        }
+    }
+});
+canvas.addEventListener('mouseleave', function (e) {
+    isDrawing = false;
+});
+
+// --- 消しゴム・スポイト・範囲選択の排他制御はupdateModeUIで管理 ---
 
 // --- リサイズ処理 ---
 document.getElementById('resizeBtn').onclick = function () {
@@ -207,8 +393,88 @@ document.getElementById('saveBtn').onclick = function () {
     a.click();
 };
 
+// --- 画像読み込み処理 ---
+document.getElementById('imageLoader').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const info = document.getElementById('imageInfo');
+    const attention = document.getElementById('imageSizeAttention');
+    info.textContent = '';
+    attention.textContent = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+            // 画像サイズ表示
+            info.textContent = `元の画像サイズ: ${img.width}×${img.height} px`;
+
+            // キャンバスサイズ・1ドットの大きさを画像サイズ・1に自動設定
+            cols = img.width;
+            rows = img.height;
+            document.getElementById('cols').value = cols;
+            document.getElementById('rows').value = rows;
+            document.getElementById('pixelSize').value = 1;
+
+            // ドット配列を画像サイズで初期化
+            pixels = [];
+            for (let y = 0; y < rows; y++) {
+                let row = [];
+                for (let x = 0; x < cols; x++) {
+                    row.push({ color: null });
+                }
+                pixels.push(row);
+            }
+
+            // 画像をそのままドット化
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = cols;
+            tmpCanvas.height = rows;
+            const tmpCtx = tmpCanvas.getContext('2d');
+            tmpCtx.drawImage(img, 0, 0, cols, rows);
+            const imgData = tmpCtx.getImageData(0, 0, cols, rows).data;
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    const idx = (y * cols + x) * 4;
+                    const r = imgData[idx];
+                    const g = imgData[idx + 1];
+                    const b = imgData[idx + 2];
+                    const a = imgData[idx + 3];
+                    if (a < 128) {
+                        pixels[y][x].color = null;
+                    } else {
+                        pixels[y][x].color = `rgb(${r},${g},${b})`;
+                    }
+                }
+            }
+            attention.textContent = '';
+            drawCanvas();
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+});
+
+// --- 選択範囲の描画 ---
+function drawSelectionRect() {
+    if (!selection) return;
+    const displayPixelSize = 20;
+    ctx.save();
+    ctx.strokeStyle = "#00f";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(
+        selection.x1 * displayPixelSize,
+        selection.y1 * displayPixelSize,
+        (selection.x2 - selection.x1 + 1) * displayPixelSize,
+        (selection.y2 - selection.y1 + 1) * displayPixelSize
+    );
+    ctx.restore();
+}
+
 // --- 初期化 ---
 initPixels();
 drawCanvas();
 setColorFromHSB();
 updateColorPreview();
+updatePaletteView();
+updateModeUI();
