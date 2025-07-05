@@ -471,6 +471,57 @@ function drawSelectionRect() {
     ctx.restore();
 }
 
+// RGB入力欄から現在の色を取得
+function getCurrentColorString() {
+    const r = Number(document.getElementById('r').value);
+    const g = Number(document.getElementById('g').value);
+    const b = Number(document.getElementById('b').value);
+    return `rgb(${r},${g},${b})`;
+}
+
+// 全体を指定色で塗りつぶす
+document.getElementById('fillAllBtn').onclick = function() {
+    const color = getCurrentColorString();
+    for (let y = 0; y < pixels.length; y++) {
+        for (let x = 0; x < pixels[0].length; x++) {
+            pixels[y][x].color = color;
+        }
+    }
+    drawCanvas();
+};
+
+// 選択範囲を指定色で塗りつぶす
+document.getElementById('fillSelectionBtn').onclick = function() {
+    if (!selection) return;
+    const color = getCurrentColorString();
+    const x1 = Math.min(selection.x1, selection.x2);
+    const x2 = Math.max(selection.x1, selection.x2);
+    const y1 = Math.min(selection.y1, selection.y2);
+    const y2 = Math.max(selection.y1, selection.y2);
+    for (let y = y1; y <= y2; y++) {
+        for (let x = x1; x <= x2; x++) {
+            if (pixels[y] && pixels[y][x]) {
+                pixels[y][x].color = color;
+            }
+        }
+    }
+    drawCanvas();
+};
+
+// 選択範囲があるときだけ「選択範囲を塗りつぶす」ボタンを有効化
+function updateFillSelectionBtn() {
+    document.getElementById('fillSelectionBtn').disabled = !selection;
+}
+
+// 範囲選択のたびにボタン状態を更新
+const origDrawCanvas = drawCanvas;
+drawCanvas = function() {
+    origDrawCanvas();
+    updateFillSelectionBtn();
+};
+updateFillSelectionBtn();
+
+
 // --- 初期化 ---
 initPixels();
 drawCanvas();
