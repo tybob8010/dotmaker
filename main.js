@@ -529,3 +529,12 @@ setColorFromHSB();
 updateColorPreview();
 updatePaletteView();
 updateModeUI();
+
+document.addEventListener("DOMContentLoaded", function () {
+    const helpBtn = document.getElementById("helpMenuBtn");
+    const helpMenu = document.getElementById("helpMenu");
+
+    helpBtn.addEventListener("click", () => {
+        helpMenu.classList.toggle("show");
+    });
+});
